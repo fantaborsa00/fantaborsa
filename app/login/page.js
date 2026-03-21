@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-app/login/page.js
+import { supabase } from '@/lib/supabase'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -25,6 +25,7 @@ export default function LoginPage() {
       setError(error.message)
     } else {
       setMessage('Login effettuato con successo.')
+      window.location.href = '/leagues'
     }
 
     setLoading(false)
