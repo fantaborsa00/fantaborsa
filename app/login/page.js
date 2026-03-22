@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [username, setUsername] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState(null)
   const [error, setError] = useState(null)
@@ -37,17 +38,43 @@ export default function LoginPage() {
     setMessage(null)
     setError(null)
 
-    const { error } = await supabase.auth.signUp({
+    const u = username.trim()
+    if (!u) {
+      setError('Inserisci uno username per la registrazione.')
+      setLoading(false)
+      return
+    }
+
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: { username: u },
+      },
     })
 
     if (error) {
       setError(error.message)
-    } else {
-      setMessage('Registrazione completata. Controlla la tua email per confermare l\'account.')
+      setLoading(false)
+      return
     }
 
+    const newUser = data?.user
+    if (newUser?.id) {
+      const { error: profileError } = await supabase.from('profiles').insert({
+        id: newUser.id,
+        username: u,
+      })
+      if (profileError) {
+        setError(profileError.message)
+        setLoading(false)
+        return
+      }
+    }
+
+    setMessage(
+      'Registrazione completata. Controlla la tua email per confermare l\'account.'
+    )
     setLoading(false)
   }
 
@@ -84,6 +111,24 @@ export default function LoginPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="••••••••"
               required
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="register-username"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Username <span className="font-normal text-gray-500">(solo registrazione)</span>
+            </label>
+            <input
+              id="register-username"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Il tuo nome utente"
+              autoComplete="username"
             />
           </div>
 

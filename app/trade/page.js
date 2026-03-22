@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
 function formatCash(n) {
@@ -22,6 +23,7 @@ async function fetchQuote(ticker) {
 }
 
 export default function TradePage() {
+  const router = useRouter()
   const [user, setUser] = useState(null)
   const [portfolios, setPortfolios] = useState([])
   const [selectedPortfolioId, setSelectedPortfolioId] = useState('')
@@ -362,6 +364,10 @@ export default function TradePage() {
     )
   }
 
+  const selectedPortfolio = portfolios.find(
+    (p) => p.id === selectedPortfolioId
+  )
+
   return (
     <div className="min-h-screen bg-gray-100 py-10 px-4">
       <div className="mx-auto max-w-lg space-y-6">
@@ -399,6 +405,17 @@ export default function TradePage() {
               {formatCash(cashRemaining)}
             </span>
           </p>
+          {selectedPortfolioId && selectedPortfolio?.league_id && (
+            <button
+              type="button"
+              onClick={() =>
+                router.push(`/leagues/${selectedPortfolio.league_id}`)
+              }
+              className="mt-4 w-full rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-900 shadow-sm transition hover:bg-blue-100"
+            >
+              Vai alla classifica
+            </button>
+          )}
         </section>
 
         <section className="rounded-lg bg-white p-6 shadow-md">

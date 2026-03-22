@@ -1,6 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
 function generateLeagueCode() {
@@ -13,6 +15,7 @@ function generateLeagueCode() {
 }
 
 export default function LeaguesPage() {
+  const router = useRouter()
   const [user, setUser] = useState(null)
 
   const [leagueName, setLeagueName] = useState('')
@@ -25,6 +28,33 @@ export default function LeaguesPage() {
   const [joinError, setJoinError] = useState(null)
   const [joinSuccess, setJoinSuccess] = useState(null)
 
+  const [myPortfolios, setMyPortfolios] = useState([])
+  const [myLeaguesLoading, setMyLeaguesLoading] = useState(false)
+
+  const loadMyLeagues = useCallback(async (uid) => {
+    if (!uid) {
+      setMyPortfolios([])
+      setMyLeaguesLoading(false)
+      return
+    }
+    setMyLeaguesLoading(true)
+    const { data, error } = await supabase
+      .from('portfolios')
+      .select('id, league_id, leagues ( name )')
+      .eq('user_id', uid)
+
+    if (!error && data) {
+      setMyPortfolios(data)
+    } else {
+      const { data: basic } = await supabase
+        .from('portfolios')
+        .select('id, league_id')
+        .eq('user_id', uid)
+      setMyPortfolios(basic ?? [])
+    }
+    setMyLeaguesLoading(false)
+  }, [])
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user: u } }) => setUser(u))
     const {
@@ -34,6 +64,10 @@ export default function LeaguesPage() {
     })
     return () => subscription.unsubscribe()
   }, [])
+
+  useEffect(() => {
+    loadMyLeagues(user?.id)
+  }, [user?.id, loadMyLeagues])
 
   const handleCreate = async (e) => {
     e.preventDefault()
@@ -56,21 +90,25 @@ export default function LeaguesPage() {
     let lastError = null
     for (let attempt = 0; attempt < 8; attempt++) {
       const code = generateLeagueCode()
-      const { error } = await supabase.from('leagues').insert({
-        name,
-        code,
-        creator_id: user.id,
-      })
+      const { data: created, error } = await supabase
+        .from('leagues')
+        .insert({
+          name,
+          code,
+          creator_id: user.id,
+        })
+        .select('id')
+        .single()
 
-      if (!error) {
-        setCreateSuccess(`Lega creata. Codice invito: ${code}`)
+      if (!error && created?.id) {
         setLeagueName('')
         setCreateLoading(false)
+        router.push(`/leagues/${created.id}`)
         return
       }
 
       lastError = error
-      if (error.code !== '23505') break
+      if (error?.code !== '23505') break
     }
 
     setCreateError(lastError?.message ?? 'Impossibile creare la lega.')
@@ -126,14 +164,16 @@ export default function LeaguesPage() {
         setJoinError(insertError.message)
       }
     } else {
-      setJoinSuccess(
-        'Ti sei unito alla lega. Portfolio creato con 10.000 di cash disponibile.'
-      )
+      setJoinSuccess('Ti sei unito alla lega. Portfolio creato con 10.000 di cash disponibile.')
       setJoinCode('')
+      await loadMyLeagues(user.id)
+      router.push('/trade')
     }
 
     setJoinLoading(false)
   }
+
+  const portfoliosWithLeague = myPortfolios.filter((p) => p.league_id)
 
   return (
     <div className="min-h-screen bg-gray-100 py-10 px-4">
@@ -141,6 +181,46 @@ export default function LeaguesPage() {
         <h1 className="text-center text-2xl font-semibold text-gray-800">
           Leghe
         </h1>
+
+        <section className="rounded-lg bg-white p-8 shadow-md">
+          <h2 className="mb-4 text-lg font-medium text-gray-800">
+            Le mie leghe
+          </h2>
+          {!user && (
+            <p className="text-sm text-gray-600">
+              Accedi per vedere le tue leghe.
+            </p>
+          )}
+          {user && myLeaguesLoading && (
+            <p className="text-sm text-gray-600">Caricamento…</p>
+          )}
+          {user && !myLeaguesLoading && portfoliosWithLeague.length === 0 && (
+            <p className="text-sm text-gray-600">
+              Non sei ancora in nessuna lega.
+            </p>
+          )}
+          {user && !myLeaguesLoading && portfoliosWithLeague.length > 0 && (
+            <ul className="space-y-3">
+              {portfoliosWithLeague.map((p) => {
+                const name =
+                  p.leagues?.name ||
+                  `Lega ${String(p.league_id).slice(0, 8)}…`
+                return (
+                  <li key={p.id}>
+                    <Link
+                      href={`/leagues/${p.league_id}`}
+                      className="block rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 shadow-sm transition hover:border-blue-400 hover:bg-blue-50"
+                    >
+                      <span className="font-medium text-gray-900">
+                        {name}
+                      </span>
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </section>
 
         <section className="rounded-lg bg-white p-8 shadow-md">
           <h2 className="mb-4 text-lg font-medium text-gray-800">
